@@ -12,6 +12,10 @@ Should support Windows, Linux and MacOS. But only tested on Windows.
 To use this extension, ensure you have a container runtime installed and properly configured. Currently tested with **Docker Desktop** and **Rancher Desktop**.
 
 ## Installation
+
+- OneWare Studio -> settings -> Package Manager -> add
+  - https://raw.githubusercontent.com/timonix/OneWare.PslExtension/refs/heads/main/oneware-extension.json
+   
 - Install extension
 - Install a container runtime
 
