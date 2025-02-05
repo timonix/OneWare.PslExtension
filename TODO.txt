@@ -1,0 +1,3 @@
+Lägg till konsol output
+Flytta output katalog
+Kontrollera om docker är installerat
