@@ -14,7 +14,7 @@ To use this extension, ensure you have a container runtime installed and properl
 ## Installation
 
 - OneWare Studio -> settings -> Package Manager -> add
-  - https://raw.githubusercontent.com/timonix/OneWare.PslExtension/refs/heads/main/oneware-extension.json
+  - https://raw.githubusercontent.com/timonix/OneWare.PslExtension/main/oneware-extension.json
    
 - Install extension
 - Install a container runtime
