@@ -1,28 +1,28 @@
 {
-  "category": "Tools",
+  "category": "Simulators",
   "type": "Plugin",
-  "name": "OneWare.PslExtension Extension",
+  "name": "PSL Extension",
   "id": "OneWare.PslExtension",
-  "description": "OneWare.PslExtension for OneWare",
+  "description": "PSL integration for OneWare",
   "license": "MIT",
-  "iconUrl": "https://raw.githubusercontent.com/GithubUser/OneWare.PslExtension/main/Icon.png",
+  "iconUrl": "https://raw.githubusercontent.com/timonix/OneWare.PslExtension/main/Icon.png",
   "tabs": [
     {
       "title": "Readme",
-      "contentUrl": "https://raw.githubusercontent.com/GithubUser/OneWare.PslExtension/main/Extension.md"
+      "contentUrl": "https://raw.githubusercontent.com/timonix/OneWare.PslExtension/main/Extension.md"
     },
     {
       "title": "License",
-      "contentUrl": "https://raw.githubusercontent.com/GithubUser/OneWare.PslExtension/main/License.md"
+      "contentUrl": "https://raw.githubusercontent.com/timonix/OneWare.PslExtension/main/License.md"
     }
   ],
   "links": [
     {
       "name": "Github",
-      "url": "https://github.com/GithubUser/OneWare.PslExtension"
+      "url": "https://github.com/timonix/OneWare.PslExtension"
     }
   ],
-  "sourceUrl": "https://github.com/GithubUser/OneWare.PslExtension/releases/download",
+  "sourceUrl": "https://github.com/timonix/OneWare.PslExtension/releases/download",
   "versions": [
     {
       "version": "0.1",

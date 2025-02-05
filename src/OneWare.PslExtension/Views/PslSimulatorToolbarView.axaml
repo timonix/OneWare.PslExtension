@@ -12,12 +12,8 @@
                 <Flyout>
                     <StackPanel Spacing="3">
                         <StackPanel Orientation="Vertical" Spacing="2">
-                            <TextBlock Text="Additional GHDL Options"/>
-                            <TextBox Text="{Binding AdditionalGhdlOptions}" />
-                        </StackPanel>
-                        <StackPanel Orientation="Vertical" Spacing="2">
-                            <TextBlock Text="Additional GHDL Simulation Options"/>
-                            <TextBox Text="{Binding AdditionalGhdlSimOptions}" />
+                            <TextBlock Text="Additional Options, comma seperated"/>
+                            <TextBox Text="{Binding AdditionalOptions}" />
                         </StackPanel>
                     </StackPanel>
                 </Flyout>
@@ -26,30 +22,30 @@
         </Button>
         
         <StackPanel DockPanel.Dock="Left" Classes="HToolBar" ClipToBounds="True">
-            <TextBlock VerticalAlignment="Center" Text="VHDL Standard"
-                       ToolTip.Tip="Select the VHDL standard expected by GHDL" />
+            <TextBlock VerticalAlignment="Center" Text="Bmc Mode"
+                       ToolTip.Tip="Select the verification type for the sby file" />
             <Border Classes="RoundToolBar">
-                <ComboBox Width="60" ItemsSource="{Binding AvailableVhdlStandards}" SelectedIndex="3"
-                          SelectedItem="{Binding VhdlStandard, Mode=TwoWay}" />
+                <ComboBox Width="60" ItemsSource="{Binding AvailableBmcModes}" SelectedIndex="1"
+                          SelectedItem="{Binding BmcMode, Mode=TwoWay}" />
             </Border>
-            <Border Classes="SplitterBorder" />
-            <TextBlock VerticalAlignment="Center" Text="Stop Time"
-                       ToolTip.Tip="Sets the time when the simulation is forced to stop" />
-            <TextBox Watermark="10ms" Classes="ToolBar" Width="100" Text="{Binding SimulationStopTime}" />
-            <Border Classes="SplitterBorder" />
-            <TextBlock VerticalAlignment="Center" Text="Format"
-                       ToolTip.Tip="Select the output format to use. VCD can be opened inside the IDE, while GHW and FST require GTKWave." />
+            
+            <TextBlock VerticalAlignment="Center" Text="Engine"
+                       ToolTip.Tip="select the bmc engine" />
             <Border Classes="RoundToolBar">
-                <ComboBox Width="100" ItemsSource="{Binding AvailableWaveOutputFormats}" SelectedIndex="0"
-                          SelectedItem="{Binding WaveOutputFormat, Mode=TwoWay}" />
+                <ComboBox Width="80" ItemsSource="{Binding AvailableBmcEngines}" SelectedIndex="1"
+                          SelectedItem="{Binding BmcEngine, Mode=TwoWay}" />
             </Border>
-            <Border Classes="SplitterBorder" />
-            <TextBlock VerticalAlignment="Center" Text="Assert Level"
-                       ToolTip.Tip="Select the assertion level at which an assertion violation stops the simulation" />
+            
             <Border Classes="RoundToolBar">
-                <ComboBox Width="100" ItemsSource="{Binding AvailableAssertLevels}" SelectedIndex="0"
-                          SelectedItem="{Binding AssertLevel, Mode=TwoWay}" />
+                <ComboBox Width="60" ItemsSource="{Binding AvailableSolvers}" SelectedIndex="1"
+                          SelectedItem="{Binding Solver, Mode=TwoWay}">
+                </ComboBox>
+                
             </Border>
+            
+            <TextBlock VerticalAlignment="Center" Text="Depth"
+                       ToolTip.Tip="Set the search depth" />
+            <TextBox Watermark="25" Classes="ToolBar" Width="60" Text="{Binding SearchDepth}" />
         </StackPanel>
     </DockPanel>
 </UserControl>

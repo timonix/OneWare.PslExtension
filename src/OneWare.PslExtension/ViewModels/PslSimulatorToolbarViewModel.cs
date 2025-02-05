@@ -16,59 +16,58 @@ public class PslSimulatorToolbarViewModel(TestBenchContext context, IFpgaSimulat
             OnPropertyChanged();
         }
     }
-    
-    public string[] AvailableVhdlStandards => ["test"];
-    public string VhdlStandard
+
+    public string SearchDepth
     {
-        get => context.GetBenchProperty(nameof(VhdlStandard)) ?? "93c";
+        get => context.GetBenchProperty(nameof(SearchDepth))?? "25";
         set
         {
-            context.SetBenchProperty(nameof(VhdlStandard), value);
+            if(string.IsNullOrWhiteSpace(value)) context.RemoveBenchProperty(nameof(SearchDepth));
+            else context.SetBenchProperty(nameof(SearchDepth), value);
             OnPropertyChanged();
         }
     }
     
-    public string[] AvailableWaveOutputFormats => ["VCD", "GHW", "FST"];
-    public string WaveOutputFormat
+    public string[] AvailableBmcModes => ["bmc","cover","prove"];
+    public string BmcMode
     {
-        get => context.GetBenchProperty(nameof(WaveOutputFormat)) ?? "VCD";
+        get => context.GetBenchProperty(nameof(BmcMode)) ?? "bmc";
         set
         {
-            context.SetBenchProperty(nameof(WaveOutputFormat), value);
+            context.SetBenchProperty(nameof(BmcMode), value);
             OnPropertyChanged();
         }
     }
     
-    public string[] AvailableAssertLevels => ["default", "warning", "error", "failure", "none"];
-    public string AssertLevel
+    public string[] AvailableBmcEngines => ["smtbmc"];
+    public string BmcEngine
     {
-        get => context.GetBenchProperty(nameof(AssertLevel)) ?? "default";
+        get => context.GetBenchProperty(nameof(BmcEngine)) ?? "smtbmc";
         set
         {
-            if(value == "default") context.RemoveBenchProperty(nameof(AssertLevel));
-            else context.SetBenchProperty(nameof(AssertLevel), value);
+            context.SetBenchProperty(nameof(BmcEngine), value);
             OnPropertyChanged();
         }
     }
     
-    public string AdditionalGhdlOptions
+    public string[] AvailableSolvers => ["z3"];
+    public string Solver
     {
-        get => context.GetBenchProperty(nameof(AdditionalGhdlOptions)) ?? "";
+        get => context.GetBenchProperty(nameof(BmcEngine)) ?? "z3";
         set
         {
-            if(string.IsNullOrWhiteSpace(value)) context.RemoveBenchProperty(nameof(AdditionalGhdlOptions));
-            else context.SetBenchProperty(nameof(AdditionalGhdlOptions), value);
+            context.SetBenchProperty(nameof(BmcEngine), value);
             OnPropertyChanged();
         }
     }
     
-    public string AdditionalGhdlSimOptions
+    public string AdditionalOptions
     {
-        get => context.GetBenchProperty(nameof(AdditionalGhdlSimOptions)) ?? "";
+        get => context.GetBenchProperty(nameof(AdditionalOptions)) ?? "";
         set
         {
-            if(string.IsNullOrWhiteSpace(value)) context.RemoveBenchProperty(nameof(AdditionalGhdlSimOptions));
-            else context.SetBenchProperty(nameof(AdditionalGhdlSimOptions), value);
+            if(string.IsNullOrWhiteSpace(value)) context.RemoveBenchProperty(nameof(AdditionalOptions));
+            else context.SetBenchProperty(nameof(AdditionalOptions), value);
             OnPropertyChanged();
         }
     }
