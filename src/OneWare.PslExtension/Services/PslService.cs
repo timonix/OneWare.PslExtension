@@ -58,7 +58,7 @@ public class PslService
         return relativePath;
         return relativePath.Replace('/', '\\'); // Convert to Windows-style path
     }
-    
+
     public async Task<bool> RunSbyAsync(IProjectFile file)
     {
 
@@ -67,17 +67,18 @@ public class PslService
         var containerImage = "hdlc/formal";
         var yosysCommand = "yosys -m ghdl";
         var sbyFileName = file.Name;
-        var relativePath = GetRelativePath(file.Root.FullPath, file.TopFolder.FullPath);
         
+        var relativePath = GetRelativePath(file.Root.FullPath, file.TopFolder.FullPath);
+
         List<string> arguments = new List<string>
         {
-            "run",// "--rm",
+            "run", // "--rm",
             "-v", $"{userPath}:{containerWorkspace}",
             "-w", $"{containerWorkspace}/{relativePath}",
             containerImage,
             "sby", "--yosys", yosysCommand, "-f", sbyFileName
         };
-        
+
         var run = await _childProcessService.ExecuteShellAsync("docker", arguments, file.Root!.FullPath,
             "running bounded model checker...", AppState.Loading, true, x =>
             {
@@ -88,6 +89,20 @@ public class PslService
                 _logger.Warning(x);
                 return true;
             });
-        return run.success;
+        
+        var sbyFileWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
+        var bmcSourceFolder = $"{file.TopFolder.FullPath}/{sbyFileWithoutExtension}_bmc/src";
+        foreach (var filePath in Directory.GetFiles(bmcSourceFolder, "*.vhd"))
+        {
+            var directory = Path.GetDirectoryName(filePath);
+            var nameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
+            var newFilePath = Path.Combine(directory, nameWithoutExtension + ".vhd.test");
+
+            File.Move(filePath, newFilePath);
+
+            Console.WriteLine($"Renamed: {filePath} -> {newFilePath}");
+        }
+
+    return run.success;
     }
 }
