@@ -22,10 +22,10 @@
       "url": "https://github.com/timonix/OneWare.PslExtension"
     }
   ],
-  "sourceUrl": "https://github.com/timonix/OneWare.PslExtension/releases/tag/0.1.0",
+  "sourceUrl": "https://github.com/timonix/OneWare.PslExtension/releases/download",
   "versions": [
     {
-      "version": "0.1",
+      "version": "0.1.0",
       "minStudioVersion": "0.21.0.0",
       "targets": [
         {
