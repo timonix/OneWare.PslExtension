@@ -1,3 +1,4 @@
 Lägg till konsol output
 Flytta output katalog
 Kontrollera om docker är installerat
+öppna VCD viewer när relevant
