@@ -121,7 +121,6 @@ public class PslService
             {
                 Console.WriteLine(f.Name);
             }
-            Console.WriteLine($"----{i}-----");
             
             HashSet<string> candidates = new HashSet<string>();
             HashSet<IProjectFile> next = new HashSet<IProjectFile>();
@@ -232,19 +231,6 @@ public class PslService
                 _logger.Warning(x);
                 return true;
             });
-        
-        var sbyFileWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
-        var bmcSourceFolder = $"{file.TopFolder.FullPath}/{sbyFileWithoutExtension}_bmc/src";
-        foreach (var filePath in Directory.GetFiles(bmcSourceFolder, "*.vhd"))
-        {
-            var directory = Path.GetDirectoryName(filePath);
-            var nameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
-            var newFilePath = Path.Combine(directory, nameWithoutExtension + ".vhd.test");
-
-            File.Move(filePath, newFilePath);
-
-            Console.WriteLine($"Renamed: {filePath} -> {newFilePath}");
-        }
 
     return run.success;
     }
