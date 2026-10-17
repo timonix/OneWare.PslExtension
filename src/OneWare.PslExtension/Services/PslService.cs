@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.ComponentModel;
+using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -16,6 +18,9 @@ namespace OneWare.PslExtension.Services;
 
 public class PslService
 {
+    private const string BuildFolderName = "build";
+    private const int DockerCheckTimeoutSeconds = 15;
+
     private readonly ILogger _logger;
     private readonly IMainDockService _dockService;
     private readonly IPackageService _packageService;
@@ -39,7 +44,20 @@ public class PslService
         
     }
     
-    static HashSet<string> ExtractComponents(string filePath)
+    private static string GetSbyPath(string vhdlFullPath)
+    {
+        return Path.Combine(Path.GetDirectoryName(vhdlFullPath)!, $"{Path.GetFileNameWithoutExtension(vhdlFullPath)}.sby");
+    }
+
+    private static bool IsInBuildFolder(string relativePath)
+    {
+        return relativePath
+            .Split('/', '\\')
+            .SkipLast(1)
+            .Any(x => x.Equals(BuildFolderName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    HashSet<string> ExtractComponents(string filePath)
     {
         HashSet<string> components = new HashSet<string>();
         string pattern = @"\s*component\s+(\w+)";
@@ -57,12 +75,12 @@ public class PslService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading file: {ex.Message}");
+            _logger.Error($"Error reading file {filePath}: {ex.Message}", ex);
         }
 
         return components;
     }
-    static HashSet<string> ExtractEntities(string filePath)
+    HashSet<string> ExtractEntities(string filePath)
     {
         HashSet<string> entities = new HashSet<string>();
         string pattern = @"\s+work\.(\w+)";
@@ -80,7 +98,7 @@ public class PslService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading file: {ex.Message}");
+            _logger.Error($"Error reading file {filePath}: {ex.Message}", ex);
         }
 
         return entities;
@@ -98,39 +116,45 @@ public class PslService
         var entity = Path.GetFileNameWithoutExtension(fullPath);
         var sbyDirectory = Path.GetDirectoryName(fullPath)!;
         
-        // Project files are relative to the project root folder
-        var projectFiles = root.GetFiles()
-            .Where(x => !root.IsCompileExcluded(x))
-            .ToList();
-        
-        HashSet<string> usedFiles = new HashSet<string>();
-        usedFiles.Add(Path.GetRelativePath(root.RootFolderPath, fullPath));
-        
-        for (int i = 0; i < 10; i++)
-        {
-            foreach (var f in usedFiles)
-            {
-                Console.WriteLine(f);
-            }
-            
-            HashSet<string> candidates = new HashSet<string>();
-            HashSet<string> next = new HashSet<string>();
-            foreach (var f in usedFiles)
-            {
-                var fileFullPath = Path.Combine(root.RootFolderPath, f);
-                candidates.UnionWith(ExtractEntities(fileFullPath));
-                candidates.UnionWith(ExtractComponents(fileFullPath));
-        
-                next.UnionWith(projectFiles
-                    .Where(x => candidates.Contains(Path.GetFileNameWithoutExtension(x))));
-
-            }
-            usedFiles.UnionWith(next);
-        }
-        
-        var vhdlFiles = usedFiles
+        // Project files are relative to the project root folder. Entities are looked up by file name,
+        // VHDL names are case insensitive. Build folders only hold tool output (e.g. SBY copies of the sources).
+        var vhdlFilesByEntity = root.GetFiles()
             .Where(x => !root.IsCompileExcluded(x))
             .Where(x => Path.GetExtension(x) is ".vhd" or ".vhdl")
+            .Where(x => !IsInBuildFolder(x))
+            .GroupBy(x => Path.GetFileNameWithoutExtension(x), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g
+                .OrderBy(x => x.Count(c => c is '/' or '\\'))
+                .ThenBy(x => x, StringComparer.Ordinal)
+                .ToList(), StringComparer.OrdinalIgnoreCase);
+
+        // One file per entity, starting from the top entity
+        var usedFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [entity] = Path.GetRelativePath(root.RootFolderPath, fullPath)
+        };
+        var filesToScan = new Queue<string>(usedFiles.Values);
+
+        while (filesToScan.TryDequeue(out var f))
+        {
+            var fileFullPath = Path.Combine(root.RootFolderPath, f);
+            var dependencies = ExtractEntities(fileFullPath);
+            dependencies.UnionWith(ExtractComponents(fileFullPath));
+
+            foreach (var dependency in dependencies)
+            {
+                if (usedFiles.ContainsKey(dependency) || !vhdlFilesByEntity.TryGetValue(dependency, out var matches)) continue;
+
+                if (matches.Count > 1)
+                    _logger.Warning($"Entity '{dependency}' is defined in multiple files, using {matches[0]}. Ignored: {string.Join(", ", matches.Skip(1))}");
+
+                usedFiles[dependency] = matches[0];
+                filesToScan.Enqueue(matches[0]);
+            }
+        }
+
+        var vhdlFiles = usedFiles.Values
+            .Where(x => !root.IsCompileExcluded(x))
             .ToList();
         
         var vhdlFilesWithRelativePaths = vhdlFiles
@@ -155,7 +179,8 @@ public class PslService
         sb.AppendLine();
     
         sb.AppendLine("[script]");
-        sb.Append("bmc: ghdl --std=08 ");
+        // -fpsl: also check PSL written as "-- psl" comments (without it they are silently ignored)
+        sb.Append("bmc: ghdl --std=08 -fpsl ");
         sb.Append(string.Join(" ", vhdlFilesNamesOnly.Select(x => x)));
         sb.AppendLine($" -e {entity}");
         sb.AppendLine($"prep -top {entity}");
@@ -167,49 +192,107 @@ public class PslService
             sb.AppendLine(vhdlFile.Replace("\\","/"));
         }
         
-        var outputFilePath = Path.Combine(sbyDirectory, $"{entity}.sby");
+        var outputFilePath = GetSbyPath(fullPath);
 
         try
         {
             await File.WriteAllTextAsync(outputFilePath, sb.ToString());
-            Console.WriteLine($"SBY file successfully generated at {outputFilePath}");
+            _outputService.WriteLine($"SBY file successfully generated at {outputFilePath}");
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error writing SBY file: {ex.Message}");
+            _logger.Error($"Error writing SBY file {outputFilePath}: {ex.Message}", ex);
             return false;
         }
-        
-        return true;
     }
-    
+
     public async Task<bool> GenerateAndSimulateSbyAsync(string fullPath)
     {
-        await GenerateSbyAsync(fullPath);
+        if (!await GenerateSbyAsync(fullPath)) return false;
 
-        return true;
+        return await RunSbyAsync(GetSbyPath(fullPath));
+    }
+
+    /// <summary>
+    /// Checks that docker is installed and its engine is reachable, and reports a clear error if not.
+    /// Runs silently, so only the result shows up in the output.
+    /// </summary>
+    private async Task<bool> CheckDockerAsync()
+    {
+        var startInfo = new ProcessStartInfo("docker")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("info");
+        startInfo.ArgumentList.Add("--format");
+        startInfo.ArgumentList.Add("{{.ServerVersion}}");
+
+        try
+        {
+            using var process = Process.Start(startInfo)!;
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(DockerCheckTimeoutSeconds));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(true);
+                _logger.Error($"Docker did not respond within {DockerCheckTimeoutSeconds} seconds. " +
+                              "Make sure Docker (e.g. Docker Desktop or Rancher Desktop) has finished starting and try again.",
+                    null, true, true);
+                return false;
+            }
+
+            await stdoutTask;
+            if (process.ExitCode == 0) return true;
+
+            var details = (await stderrTask).Trim().Split('\n')[0].Trim();
+            _logger.Error("Docker is installed, but its engine is not running. " +
+                          "Start Docker Desktop or Rancher Desktop (or the docker service) and try again." +
+                          (details.Length > 0 ? $"\nDocker: {details}" : ""),
+                null, true, true);
+            return false;
+        }
+        catch (Win32Exception)
+        {
+            _logger.Error("Docker was not found. SymbiYosys runs inside the hdlc/formal Docker container, " +
+                          "so install Docker (e.g. Docker Desktop or Rancher Desktop) and make sure 'docker' is on your PATH.",
+                null, true, true);
+            return false;
+        }
     }
 
     public async Task<bool> RunSbyAsync(string fullPath)
     {
         if (_projectExplorerService.GetRootFromFile(fullPath) is not { } root) return false;
 
+        if (!await CheckDockerAsync()) return false;
+
         var userPath = root.RootFolderPath;
         const string containerWorkspace = "/workspace";
         const string containerImage = "hdlc/formal";
         const string yosysCommand = "yosys -m ghdl";
         var sbyFileName = Path.GetFileName(fullPath);
+        // SBY output goes to <project>/build/psl/<name>_<task>, so its copies of the sources stay out of the project
+        var workdirPrefix = $"{containerWorkspace}/{BuildFolderName}/psl/{Path.GetFileNameWithoutExtension(fullPath)}";
         
         var relativePath = Path.GetRelativePath(userPath, Path.GetDirectoryName(fullPath)!).Replace('\\', '/');
 
         List<string> arguments = new List<string>
         {
-            "run", // "--rm",
+            "run", "--rm",
             "-v", $"{userPath}:{containerWorkspace}",
             "-w", $"{containerWorkspace}/{relativePath}",
             containerImage,
-            "sby", "--yosys", yosysCommand, "-f", sbyFileName
+            "sby", "--yosys", yosysCommand, "--prefix", workdirPrefix, "-f", sbyFileName
         };
 
         var command = ToolCommand.FromShellParams("docker", arguments, userPath,

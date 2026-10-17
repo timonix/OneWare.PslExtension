@@ -33,7 +33,7 @@ public class OneWarePslExtensionModule : OneWareModuleBase
         {
             if (selected is [IProjectFile {Extension: ".vhd" or ".vhdl"} vhdFile])
             {
-                menuItems.Add(new MenuItemModel("GHDL")
+                menuItems.Add(new MenuItemModel("PSL")
                 {
                     Header = "PSL",
                     Items =

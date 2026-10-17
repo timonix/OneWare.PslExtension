@@ -25,19 +25,19 @@
             <TextBlock VerticalAlignment="Center" Text="Bmc Mode"
                        ToolTip.Tip="Select the verification type for the sby file" />
             <Border Classes="RoundToolBar">
-                <ComboBox Width="60" ItemsSource="{Binding AvailableBmcModes}" SelectedIndex="1"
+                <ComboBox Width="60" ItemsSource="{Binding AvailableBmcModes}"
                           SelectedItem="{Binding BmcMode, Mode=TwoWay}" />
             </Border>
             
             <TextBlock VerticalAlignment="Center" Text="Engine"
                        ToolTip.Tip="select the bmc engine" />
             <Border Classes="RoundToolBar">
-                <ComboBox Width="80" ItemsSource="{Binding AvailableBmcEngines}" SelectedIndex="1"
+                <ComboBox Width="80" ItemsSource="{Binding AvailableBmcEngines}"
                           SelectedItem="{Binding BmcEngine, Mode=TwoWay}" />
             </Border>
             
             <Border Classes="RoundToolBar">
-                <ComboBox Width="60" ItemsSource="{Binding AvailableSolvers}" SelectedIndex="1"
+                <ComboBox Width="60" ItemsSource="{Binding AvailableSolvers}"
                           SelectedItem="{Binding Solver, Mode=TwoWay}">
                 </ComboBox>
                 

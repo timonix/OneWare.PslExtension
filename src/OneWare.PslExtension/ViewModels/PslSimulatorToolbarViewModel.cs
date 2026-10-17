@@ -53,10 +53,10 @@ public class PslSimulatorToolbarViewModel(TestBenchContext context, IFpgaSimulat
     public string[] AvailableSolvers => ["z3"];
     public string Solver
     {
-        get => context.GetBenchProperty(nameof(BmcEngine)) ?? "z3";
+        get => context.GetBenchProperty(nameof(Solver)) ?? "z3";
         set
         {
-            context.SetBenchProperty(nameof(BmcEngine), value);
+            context.SetBenchProperty(nameof(Solver), value);
             OnPropertyChanged();
         }
     }
