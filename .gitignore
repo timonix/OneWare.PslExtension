@@ -2,6 +2,7 @@ native_tools/
 bin/
 obj/
 /packages/
+/publish/
 riderModule.iml
 /_ReSharper.Caches/
 .idea

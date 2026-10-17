@@ -1,11 +1,12 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
-using AvaloniaEdit.Utils;
 using CommunityToolkit.Mvvm.Input;
-using DynamicData.Binding;
+using Microsoft.Extensions.Logging;
 using OneWare.Essentials.Enums;
+using OneWare.Essentials.Extensions;
 using OneWare.Essentials.Models;
 using OneWare.Essentials.Services;
+using OneWare.Essentials.ToolEngine;
 using OneWare.Essentials.ViewModels;
 using OneWare.PslExtension.ViewModels;
 using OneWare.UniversalFpgaProjectSystem.Context;
@@ -16,42 +17,26 @@ namespace OneWare.PslExtension.Services;
 public class PslService
 {
     private readonly ILogger _logger;
-    private readonly IDockService _dockService;
+    private readonly IMainDockService _dockService;
     private readonly IPackageService _packageService;
-    private readonly IChildProcessService _childProcessService;
+    private readonly IToolExecutionDispatcherService _toolExecutionDispatcherService;
     private readonly IEnvironmentService _environmentService;
     private readonly IOutputService _outputService;
     private readonly ISettingsService _settingsService;
     private readonly IProjectExplorerService _projectExplorerService;
     
-    public PslService(ILogger logger, IDockService dockService, ISettingsService settingsService, IPackageService packageService, IChildProcessService childProcessService, IEnvironmentService environmentService,
-        IOutputService outputService, IProjectExplorerService projectExplorerService)
+    public PslService(ILogger logger, IMainDockService dockService, ISettingsService settingsService, IPackageService packageService, IEnvironmentService environmentService,
+        IOutputService outputService, IProjectExplorerService projectExplorerService, IToolExecutionDispatcherService toolExecutionDispatcherService)
     {
         _logger = logger;
         _dockService = dockService;
         _packageService = packageService;
-        _childProcessService = childProcessService;
+        _toolExecutionDispatcherService = toolExecutionDispatcherService;
         _environmentService = environmentService;
         _outputService = outputService;
         _settingsService = settingsService;
         _projectExplorerService = projectExplorerService;
         
-    }
-    
-    private static string GetRelativePath(string fromPath, string toPath)
-    {
-        Uri fromUri = new Uri(fromPath.EndsWith("\\") ? fromPath : fromPath + "\\");
-        Uri toUri = new Uri(toPath);
-        
-        Uri relativeUri = fromUri.MakeRelativeUri(toUri);
-        string relativePath = Uri.UnescapeDataString(relativeUri.ToString());
-        return relativePath;
-    }
-    
-    static string GetRelativeDescription(string filePath)
-    {
-        int depth = filePath.Count(c => c == Path.DirectorySeparatorChar);
-        return string.Concat(Enumerable.Repeat("..\\", depth));
     }
     
     static HashSet<string> ExtractComponents(string filePath)
@@ -101,53 +86,58 @@ public class PslService
         return entities;
     }
     
-    public async Task<bool> GenerateSbyAsync(IProjectFile file)
+    public async Task<bool> GenerateSbyAsync(string fullPath)
     {   
-        var context = await TestBenchContextManager.LoadContextAsync(file);
+        if (_projectExplorerService.GetRootFromFile(fullPath) is not UniversalFpgaProjectRoot root) return false;
+        
+        var context = await TestBenchContextManager.LoadContextAsync(fullPath);
         var engine = context.GetBenchProperty(nameof(PslSimulatorToolbarViewModel.BmcEngine)) ?? "smtbmc";
         var mode = context.GetBenchProperty(nameof(PslSimulatorToolbarViewModel.BmcMode)) ?? "bmc";
         var solver = context.GetBenchProperty(nameof(PslSimulatorToolbarViewModel.Solver)) ?? "z3";
         var depth = context.GetBenchProperty(nameof(PslSimulatorToolbarViewModel.SearchDepth)) ?? "25";
-        var entity = Path.GetFileNameWithoutExtension(file.Name);
+        var entity = Path.GetFileNameWithoutExtension(fullPath);
+        var sbyDirectory = Path.GetDirectoryName(fullPath)!;
         
-        if(file.Root is not UniversalFpgaProjectRoot root) return false;
+        // Project files are relative to the project root folder
+        var projectFiles = root.GetFiles()
+            .Where(x => !root.IsCompileExcluded(x))
+            .ToList();
         
-        HashSet<IProjectFile> usedFiles = new HashSet<IProjectFile>();
-        usedFiles.Add(file);
+        HashSet<string> usedFiles = new HashSet<string>();
+        usedFiles.Add(Path.GetRelativePath(root.RootFolderPath, fullPath));
         
         for (int i = 0; i < 10; i++)
         {
             foreach (var f in usedFiles)
             {
-                Console.WriteLine(f.Name);
+                Console.WriteLine(f);
             }
             
             HashSet<string> candidates = new HashSet<string>();
-            HashSet<IProjectFile> next = new HashSet<IProjectFile>();
+            HashSet<string> next = new HashSet<string>();
             foreach (var f in usedFiles)
             {
-                
-                candidates.AddRange(ExtractEntities(f.FullPath));
-                candidates.AddRange(ExtractComponents(f.FullPath));
+                var fileFullPath = Path.Combine(root.RootFolderPath, f);
+                candidates.UnionWith(ExtractEntities(fileFullPath));
+                candidates.UnionWith(ExtractComponents(fileFullPath));
         
-                next.AddRange(root.Files
-                    .Where(x => !root.CompileExcluded.Contains(x))
-                    .Where(x => candidates.Contains(Path.GetFileNameWithoutExtension(x.Name))));
+                next.UnionWith(projectFiles
+                    .Where(x => candidates.Contains(Path.GetFileNameWithoutExtension(x))));
 
             }
-            usedFiles.AddRange(next);
+            usedFiles.UnionWith(next);
         }
         
-        var relativePath = GetRelativeDescription(file.RelativePath);
-        var vhdlFilesWithRelativePaths = usedFiles
-            .Where(x => !root.CompileExcluded.Contains(x))
-            .Where(x => x.Extension is ".vhd" or ".vhdl")
-            .Select(x => $"{relativePath}{x.RelativePath}");
+        var vhdlFiles = usedFiles
+            .Where(x => !root.IsCompileExcluded(x))
+            .Where(x => Path.GetExtension(x) is ".vhd" or ".vhdl")
+            .ToList();
         
-        var vhdlFilesNamesOnly = usedFiles
-            .Where(x => !root.CompileExcluded.Contains(x))
-            .Where(x => x.Extension is ".vhd" or ".vhdl")
-            .Select(x => x.Name);
+        var vhdlFilesWithRelativePaths = vhdlFiles
+            .Select(x => Path.GetRelativePath(sbyDirectory, Path.Combine(root.RootFolderPath, x)));
+        
+        var vhdlFilesNamesOnly = vhdlFiles
+            .Select(Path.GetFileName);
         
         var sb = new StringBuilder();
     
@@ -177,7 +167,7 @@ public class PslService
             sb.AppendLine(vhdlFile.Replace("\\","/"));
         }
         
-        var outputFilePath = $"{file.TopFolder.FullPath}/{entity}.sby";
+        var outputFilePath = Path.Combine(sbyDirectory, $"{entity}.sby");
 
         try
         {
@@ -194,23 +184,24 @@ public class PslService
         return true;
     }
     
-    public async Task<bool> GenerateAndSimulateSbyAsync(IProjectFile file)
+    public async Task<bool> GenerateAndSimulateSbyAsync(string fullPath)
     {
-        await GenerateSbyAsync(file);
+        await GenerateSbyAsync(fullPath);
 
         return true;
     }
 
-    public async Task<bool> RunSbyAsync(IProjectFile file)
+    public async Task<bool> RunSbyAsync(string fullPath)
     {
+        if (_projectExplorerService.GetRootFromFile(fullPath) is not { } root) return false;
 
-        var userPath = file.Root.FullPath;
+        var userPath = root.RootFolderPath;
         const string containerWorkspace = "/workspace";
         const string containerImage = "hdlc/formal";
         const string yosysCommand = "yosys -m ghdl";
-        var sbyFileName = file.Name;
+        var sbyFileName = Path.GetFileName(fullPath);
         
-        var relativePath = GetRelativePath(file.Root.FullPath, file.TopFolder.FullPath);
+        var relativePath = Path.GetRelativePath(userPath, Path.GetDirectoryName(fullPath)!).Replace('\\', '/');
 
         List<string> arguments = new List<string>
         {
@@ -221,7 +212,7 @@ public class PslService
             "sby", "--yosys", yosysCommand, "-f", sbyFileName
         };
 
-        var run = await _childProcessService.ExecuteShellAsync("docker", arguments, file.Root!.FullPath,
+        var command = ToolCommand.FromShellParams("docker", arguments, userPath,
             "running bounded model checker...", AppState.Loading, true, x =>
             {
                 _outputService.WriteLine(x);
@@ -232,6 +223,7 @@ public class PslService
                 return true;
             });
 
-    return run.success;
+        var (success, _) = await _toolExecutionDispatcherService.ExecuteAsync(command);
+        return success;
     }
 }

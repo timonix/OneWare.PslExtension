@@ -1,4 +1,5 @@
 ﻿using OneWare.Essentials.Models;
+using OneWare.Essentials.Services;
 using OneWare.PslExtension.Services;
 using OneWare.PslExtension.ViewModels;
 using OneWare.PslExtension.Views;
@@ -12,13 +13,13 @@ public class PslSimulator : IFpgaSimulator
     private readonly PslService _pslService;
     public string Name => "PSL";
     
-    public UiExtension? TestBenchToolbarTopUiExtension { get; } 
+    public OneWareUiExtension? TestBenchToolbarTopUiExtension { get; } 
 
     public PslSimulator(PslService pslService)
     {
         _pslService = pslService;
         
-        TestBenchToolbarTopUiExtension = new UiExtension(x =>
+        TestBenchToolbarTopUiExtension = new OneWareUiExtension(x =>
         {
             if (x is TestBenchContext tb)
             {
@@ -31,10 +32,10 @@ public class PslSimulator : IFpgaSimulator
         });
     }
     
-    public Task<bool> SimulateAsync(IFile file)
+    public Task<bool> SimulateAsync(string fullPath)
     {
-        if (file is IProjectFile { Extension: ".vhd" or "vhdl" } vhdFile) return _pslService.GenerateAndSimulateSbyAsync(vhdFile);
-        if (file is IProjectFile { Extension: ".sby" } sbyFile) return _pslService.RunSbyAsync(sbyFile);
+        if (Path.GetExtension(fullPath) is ".vhd" or ".vhdl") return _pslService.GenerateAndSimulateSbyAsync(fullPath);
+        if (Path.GetExtension(fullPath) is ".sby") return _pslService.RunSbyAsync(fullPath);
         return Task.FromResult(false);
     }
 }
