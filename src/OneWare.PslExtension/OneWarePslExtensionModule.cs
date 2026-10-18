@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using OneWare.Essentials.Enums;
 using OneWare.Essentials.Extensions;
+using OneWare.Essentials.Helpers;
 using OneWare.Essentials.Models;
 using OneWare.Essentials.Services;
 using OneWare.Essentials.ToolEngine;
@@ -36,11 +38,13 @@ public class OneWarePslExtensionModule : OneWareModuleBase
             {
                 HoverDescription = "Docker: run SymbiYosys in the hdlc/formal container. " +
                                    "Native: run it from the OSS CAD Suite installed in OneWare " +
-                                   "(on Windows the matching GHDL plugin is downloaded on first use)."
+                                   "(on Windows it also needs the matching GHDL plugin, from the package manager under Binaries)."
             });
 
-        //Windows OSS CAD Suite lacks the GHDL plugin, the matching build is installed on demand
-        serviceProvider.Resolve<IPackageService>().RegisterPackage(GhdlPluginPackage.Package);
+        //Windows OSS CAD Suite lacks the GHDL plugin, users install the matching build from the package manager.
+        //Linux and macOS OSS CAD Suite include it, so it is not offered there
+        if (PlatformHelper.Platform == PlatformId.WinX64)
+            serviceProvider.Resolve<IPackageService>().RegisterPackage(GhdlPluginPackage.Package);
 
         //This example adds a context menu for .vhd files
         serviceProvider.Resolve<IProjectExplorerService>().RegisterConstructContextMenu((selected, menuItems) =>

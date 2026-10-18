@@ -3,49 +3,36 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:OneWare.PslExtension.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="30"
              x:Class="OneWare.PslExtension.Views.PslSimulatorToolbarView"
              x:DataType="viewModels:PslSimulatorToolbarViewModel">
-    <DockPanel>
-        <Button Classes="BorderButton" CornerRadius="3" DockPanel.Dock="Right">
+    <WrapPanel Classes="editor-bar-items">
+        <StackPanel Classes="form-row">
+            <TextBlock Text="Bmc Mode" ToolTip.Tip="Select the verification type for the sby file" />
+            <ComboBox Width="80" ItemsSource="{Binding AvailableBmcModes}"
+                      SelectedItem="{Binding BmcMode, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Classes="form-row">
+            <TextBlock Text="Engine" ToolTip.Tip="Select the bmc engine and its solver" />
+            <ComboBox Width="95" ItemsSource="{Binding AvailableBmcEngines}"
+                      SelectedItem="{Binding BmcEngine, Mode=TwoWay}" />
+            <ComboBox Width="80" ItemsSource="{Binding AvailableSolvers}"
+                      SelectedItem="{Binding Solver, Mode=TwoWay}" />
+        </StackPanel>
+        <StackPanel Classes="form-row">
+            <TextBlock Text="Depth" ToolTip.Tip="Set the search depth" />
+            <TextBox Watermark="25" Width="60" Text="{Binding SearchDepth}" />
+        </StackPanel>
+        <Button Classes="icon" ToolTip.Tip="Additional options">
             <Button.Flyout>
                 <Flyout>
-                    <StackPanel Spacing="3">
-                        <StackPanel Orientation="Vertical" Spacing="2">
-                            <TextBlock Text="Additional Options, comma seperated"/>
-                            <TextBox Text="{Binding AdditionalOptions}" />
-                        </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Additional Options, comma separated" />
+                        <TextBox Width="250" Text="{Binding AdditionalOptions}" />
                     </StackPanel>
                 </Flyout>
             </Button.Flyout>
             <Image Source="{DynamicResource BoxIcons.RegularMenu}" Width="14" />
         </Button>
-        
-        <StackPanel DockPanel.Dock="Left" Classes="HToolBar" ClipToBounds="True">
-            <TextBlock VerticalAlignment="Center" Text="Bmc Mode"
-                       ToolTip.Tip="Select the verification type for the sby file" />
-            <Border Classes="RoundToolBar">
-                <ComboBox Width="60" ItemsSource="{Binding AvailableBmcModes}"
-                          SelectedItem="{Binding BmcMode, Mode=TwoWay}" />
-            </Border>
-            
-            <TextBlock VerticalAlignment="Center" Text="Engine"
-                       ToolTip.Tip="select the bmc engine" />
-            <Border Classes="RoundToolBar">
-                <ComboBox Width="80" ItemsSource="{Binding AvailableBmcEngines}"
-                          SelectedItem="{Binding BmcEngine, Mode=TwoWay}" />
-            </Border>
-            
-            <Border Classes="RoundToolBar">
-                <ComboBox Width="60" ItemsSource="{Binding AvailableSolvers}"
-                          SelectedItem="{Binding Solver, Mode=TwoWay}">
-                </ComboBox>
-                
-            </Border>
-            
-            <TextBlock VerticalAlignment="Center" Text="Depth"
-                       ToolTip.Tip="Set the search depth" />
-            <TextBox Watermark="25" Classes="ToolBar" Width="60" Text="{Binding SearchDepth}" />
-        </StackPanel>
-    </DockPanel>
+    </WrapPanel>
 </UserControl>

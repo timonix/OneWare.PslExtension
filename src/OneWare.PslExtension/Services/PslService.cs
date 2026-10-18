@@ -408,14 +408,13 @@ public class PslService
         var installedVersion = _packageService.Packages.GetValueOrDefault(GhdlPluginPackage.Id)?.InstalledVersion?.Version;
         if (installedVersion == version.Version && File.Exists(pluginPath)) return pluginPath;
 
-        _outputService.WriteLine($"Downloading the GHDL plugin for OSS CAD Suite {version.Version}...");
-        var result = await _packageService.InstallAsync(GhdlPluginPackage.Package, version);
-        if (result.Status is PackageInstallResultReason.Installed or PackageInstallResultReason.AlreadyInstalled &&
-            File.Exists(pluginPath))
-            return pluginPath;
-
-        _logger.Error($"Installing the GHDL plugin for OSS CAD Suite {version.Version} failed ({result.Status}). " +
-                      "Check your internet connection, or switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
+        // The plugin is installed by the user from the package manager, it is not downloaded on its own
+        var problem = installedVersion == null || !File.Exists(pluginPath)
+            ? "is not installed"
+            : $"installed is for OSS CAD Suite {installedVersion}";
+        _logger.Error($"Running SymbiYosys natively on Windows needs the GHDL plugin for OSS CAD Suite {version.Version}, " +
+                      $"the one {problem}. Install version {version.Version} of \"{GhdlPluginPackage.Package.Name}\" " +
+                      "from the package manager (Binaries), or switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
             null, true, true);
         return null;
     }

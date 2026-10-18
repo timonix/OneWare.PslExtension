@@ -1,3 +1,0 @@
-# Applied with git apply and run by bash on Windows CI runners, whose git would check them out as CRLF
-tools/ghdl-plugin/*.sh text eol=lf
-tools/ghdl-plugin/*.patch text eol=lf
