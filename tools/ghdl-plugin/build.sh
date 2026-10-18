@@ -35,20 +35,28 @@ export PATH="$MINGW/bin:$PATH"
 OSS_VERSION=$(tr -d '[:space:]' < "$OSS/VERSION")
 YOSYS_EXE="$OSS/bin/yosys.exe"
 YOSYS_INCLUDE="$OSS/share/yosys/include"
-# Compiler flags yosys was built with, e.g. -std=c++20 -D_YOSYS_ -DYOSYS_VER="0.68+71" ... (without its -I)
-YOSYS_CXXFLAGS=$(grep -o "'-std=[^']*'" "$OSS/bin/yosys-config" | head -1 | tr -d "'" | sed 's/ -I[^ ]*//g')
+# Compiler flags yosys was built with: -std and the defines of the --cxxflags line of yosys-config, e.g.
+# -std=c++20 -D_YOSYS_ -DYOSYS_VER="0.68+71" ... (its -I paths are of the build machine). Older releases
+# write the quotes as \" and have more defines, like -DYOSYS_ENABLE_TCL
+YOSYS_CXXFLAGS=$(grep -m1 -e '--cxxflags ' "$OSS/bin/yosys-config" |
+    grep -oE -e "-std=[^ ']+|-D[A-Za-z0-9_]+(=[^ ']+)?" | sed 's/\\"/"/g' | tr '\n' ' ' || true)
+if [[ "$YOSYS_CXXFLAGS" != *-D_YOSYS_* ]]; then
+    echo "Could not read the compiler flags from $OSS/bin/yosys-config" >&2
+    exit 1
+fi
 
 rm -rf "$WORK" && mkdir -p "$WORK"
 cd "$WORK"
 
-# Sources. GHDL's testsuite has paths longer than Windows allows by default
-git clone -q --no-checkout -c core.longpaths=true "$GHDL_REPO" ghdl-src
+# Sources. GHDL's testsuite has paths longer than Windows allows by default.
+# Line endings stay LF, the patches are LF (git on Windows CI runners converts to CRLF by default)
+git clone -q --no-checkout -c core.longpaths=true -c core.autocrlf=false "$GHDL_REPO" ghdl-src
 git -C ghdl-src checkout -q "$GHDL_REF"
 git -C ghdl-src apply "$SCRIPT_DIR/ghdl-ar-response-file.patch"
 GHDL_COMMIT=$(git -C ghdl-src rev-parse --short=9 HEAD)
 GHDL_DESCRIBE=$(git -C ghdl-src describe --tags)
 
-git clone -q "$PLUGIN_REPO" plugin
+git clone -q -c core.autocrlf=false "$PLUGIN_REPO" plugin
 git -C plugin checkout -q "$PLUGIN_REF"
 # Makes the plugin find the GHDL libraries next to itself
 git -C plugin apply "$SCRIPT_DIR/default-prefix.patch"
