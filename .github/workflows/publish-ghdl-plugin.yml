@@ -1,0 +1,102 @@
+name: Publish GHDL Plugin
+
+# Builds GHDL and the GHDL plugin for the yosys of Windows OSS CAD Suite releases (tools/ghdl-plugin/build.sh)
+# and publishes one self-contained zip per OSS CAD Suite version as release ghdl-plugin-<version>,
+# where the extension downloads it from.
+# New versions also have to be added to OssCadSuiteVersions in Services/GhdlPluginPackage.cs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      oss_cad_suite_versions:
+        description: "OSS CAD Suite versions, separated by commas or spaces (2026-08-17, 2026.08.17 or 20260817)"
+        required: true
+        default: "2026-08-17"
+      ghdl_commit:
+        description: "GHDL commit or tag, preferably the one the Linux OSS CAD Suite ships (bin/ghdl --version: 6.0.0.r375.g3815871cd -> 3815871cd)"
+        required: true
+        default: "3815871cd"
+      plugin_commit:
+        description: "ghdl-yosys-plugin commit, has to build against that GHDL (OSS CAD Suite uses its master of the release date)"
+        required: true
+        default: "a45a8fb"
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+    steps:
+      - id: parse
+        env:
+          VERSIONS: ${{ inputs.oss_cad_suite_versions }}
+        run: |
+          versions=()
+          for v in $(echo "$VERSIONS" | tr ',' ' '); do
+            d=$(echo "$v" | tr -d '.-')
+            if ! [[ "$d" =~ ^[0-9]{8}$ ]]; then
+              echo "::error::'$v' is not an OSS CAD Suite version like 2026-08-17"
+              exit 1
+            fi
+            versions+=("$d")
+          done
+          if [ ${#versions[@]} -eq 0 ]; then
+            echo "::error::No OSS CAD Suite versions given"
+            exit 1
+          fi
+          # Versions are only digits here, so they can go into the JSON list as they are
+          json=$(printf '%s\n' "${versions[@]}" | sort -u | sed 's/.*/"&"/' | paste -sd, -)
+          echo "matrix=[$json]" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: versions
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        oss: ${{ fromJson(needs.versions.outputs.matrix) }}
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-ada make diffutils git
+      - name: Get Version
+        id: version
+        shell: pwsh
+        run: |
+          $d = "${{ matrix.oss }}"
+          "tag=$($d.Substring(0,4))-$($d.Substring(4,2))-$($d.Substring(6,2))" >> $env:GITHUB_OUTPUT
+          "version=$($d.Substring(0,4)).$($d.Substring(4,2)).$($d.Substring(6,2))" >> $env:GITHUB_OUTPUT
+      - name: Download OSS CAD Suite
+        run: |
+          file=oss-cad-suite-windows-x64-${{ matrix.oss }}.tgz
+          # Upstream ships a windows .tgz since 2026-08-17. For older releases Studio uses the repacked archive from this fork
+          curl -sSfL -o oss.tgz "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${{ steps.version.outputs.tag }}/$file" ||
+            curl -sSfL -o oss.tgz "https://github.com/hendrikmennen/oss-cad-suite-build/releases/download/${{ steps.version.outputs.tag }}/$file"
+          mkdir oss && tar xzf oss.tgz -C oss
+      - name: Build
+        env:
+          GHDL_COMMIT: ${{ inputs.ghdl_commit }}
+          PLUGIN_COMMIT: ${{ inputs.plugin_commit }}
+        run: bash tools/ghdl-plugin/build.sh oss/oss-cad-suite "$GHDL_COMMIT" "$PLUGIN_COMMIT" out
+      - uses: ncipollo/release-action@v1.14.0
+        with:
+          tag: ghdl-plugin-${{ steps.version.outputs.version }}
+          commit: ${{ github.sha }}
+          name: GHDL plugin for OSS CAD Suite ${{ steps.version.outputs.version }}
+          body: |
+            GHDL plugin for the yosys of OSS CAD Suite ${{ steps.version.outputs.version }} (Windows x64),
+            with GHDL ${{ inputs.ghdl_commit }} and ghdl-yosys-plugin ${{ inputs.plugin_commit }} built in.
+            Downloaded by the PSL Extension when SymbiYosys runs natively. Built by tools/ghdl-plugin/build.sh, see NOTICE.txt in the zip.
+            ghdl-plugin-src-${{ matrix.oss }}.tar.gz is its complete source: GHDL and ghdl-yosys-plugin at those commits, the patches and the build script.
+          # The source tarball is the GPL corresponding source of the zip
+          artifacts: out/ghdl-plugin-win-x64-${{ matrix.oss }}.zip,out/ghdl-plugin-src-${{ matrix.oss }}.tar.gz
+          allowUpdates: true
+          makeLatest: false
