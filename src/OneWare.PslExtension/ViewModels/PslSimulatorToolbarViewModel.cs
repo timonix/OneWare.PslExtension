@@ -1,10 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using OneWare.UniversalFpgaProjectSystem.Context;
-using OneWare.UniversalFpgaProjectSystem.Services;
 
 namespace OneWare.PslExtension.ViewModels;
 
-public class PslSimulatorToolbarViewModel(TestBenchContext context, IFpgaSimulator simulator) : ObservableObject
+public class PslSimulatorToolbarViewModel(TestBenchContext context) : ObservableObject
 {
     public string SimulationStopTime
     {

@@ -441,18 +441,25 @@ public class PslService
             "sby", "--yosys", yosysCommand, "--prefix", workdirPrefix, "-f", sbyFileName
         };
 
-        var command = ToolCommand.FromShellParams("docker", arguments, userPath,
-            "running bounded model checker...", AppState.Loading, true, x =>
+        var command = _toolExecutionDispatcherService.CreateToolCommandBuilder("docker")
+            .WithExecutable("docker")
+            .WithWorkingDirectory(userPath)
+            .WithStatus("running bounded model checker...")
+            .WithTimer(true)
+            .WithOutputHandler(x =>
             {
                 _outputService.WriteLine(x);
                 output?.Invoke(x);
                 return true;
-            }, x =>
+            })
+            .WithErrorHandler(x =>
             {
                 _logger.Warning(x);
                 output?.Invoke(x);
                 return true;
-            });
+            })
+            .AddRange(arguments)
+            .Build();
 
         var (success, _) = await _toolExecutionDispatcherService.ExecuteAsync(command);
         return success;

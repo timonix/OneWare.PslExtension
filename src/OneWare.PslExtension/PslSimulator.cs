@@ -25,7 +25,7 @@ public class PslSimulator : IFpgaSimulator
             {
                 return new PslSimulatorToolbarView()
                 {
-                    DataContext = new PslSimulatorToolbarViewModel(tb, this)
+                    DataContext = new PslSimulatorToolbarViewModel(tb)
                 };
             }
             return null;
