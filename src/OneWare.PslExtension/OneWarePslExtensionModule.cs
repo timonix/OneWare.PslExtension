@@ -17,6 +17,7 @@ public class OneWarePslExtensionModule : OneWareModuleBase
     public override void RegisterServices(IServiceCollection containerRegistry)
     {
         containerRegistry.AddSingleton<PslService>();
+        containerRegistry.AddSingleton<PslAiFunctions>();
     }
 
     public override void Initialize(IServiceProvider serviceProvider)
@@ -40,6 +41,10 @@ public class OneWarePslExtensionModule : OneWareModuleBase
                                    "Native: run it from the OSS CAD Suite installed in OneWare " +
                                    "(on Windows it also needs the matching GHDL plugin, from the package manager under Binaries)."
             });
+
+        var aiFunctionProvider = serviceProvider.Resolve<IAiFunctionProvider>();
+        foreach (var function in serviceProvider.Resolve<PslAiFunctions>().CreateFunctions())
+            aiFunctionProvider.RegisterFunction(function);
 
         //Windows OSS CAD Suite lacks the GHDL plugin, users install the matching build from the package manager.
         //Linux and macOS OSS CAD Suite include it, so it is not offered there

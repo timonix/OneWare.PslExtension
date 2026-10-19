@@ -230,7 +230,7 @@ public class PslService
     /// Checks that docker is installed and its engine is reachable, and reports a clear error if not.
     /// Runs silently, so only the result shows up in the output.
     /// </summary>
-    private async Task<bool> CheckDockerAsync()
+    private async Task<bool> CheckDockerAsync(Action<string>? output)
     {
         var startInfo = new ProcessStartInfo("docker")
         {
@@ -257,9 +257,8 @@ public class PslService
             catch (OperationCanceledException)
             {
                 process.Kill(true);
-                _logger.Error($"Docker did not respond within {DockerCheckTimeoutSeconds} seconds. " +
-                              "Make sure Docker (e.g. Docker Desktop or Rancher Desktop) has finished starting and try again.",
-                    null, true, true);
+                ReportRunError($"Docker did not respond within {DockerCheckTimeoutSeconds} seconds. " +
+                               "Make sure Docker (e.g. Docker Desktop or Rancher Desktop) has finished starting and try again.", output);
                 return false;
             }
 
@@ -267,43 +266,48 @@ public class PslService
             if (process.ExitCode == 0) return true;
 
             var details = (await stderrTask).Trim().Split('\n')[0].Trim();
-            _logger.Error("Docker is installed, but its engine is not running. " +
-                          "Start Docker Desktop or Rancher Desktop (or the docker service) and try again." +
-                          (details.Length > 0 ? $"\nDocker: {details}" : ""),
-                null, true, true);
+            ReportRunError("Docker is installed, but its engine is not running. " +
+                           "Start Docker Desktop or Rancher Desktop (or the docker service) and try again." +
+                           (details.Length > 0 ? $"\nDocker: {details}" : ""), output);
             return false;
         }
         catch (Win32Exception)
         {
-            _logger.Error("Docker was not found. SymbiYosys runs inside the hdlc/formal Docker container, " +
-                          "so install Docker (e.g. Docker Desktop or Rancher Desktop) and make sure 'docker' is on your PATH.",
-                null, true, true);
+            ReportRunError("Docker was not found. SymbiYosys runs inside the hdlc/formal Docker container, " +
+                           "so install Docker (e.g. Docker Desktop or Rancher Desktop) and make sure 'docker' is on your PATH.", output);
             return false;
         }
     }
 
-    public async Task<bool> RunSbyAsync(string fullPath)
+    private void ReportRunError(string message, Action<string>? output)
+    {
+        _logger.Error(message, null, true, true);
+        output?.Invoke(message);
+    }
+
+    /// <param name="output">Also gets SBY's output, and the reason when SBY can't be started.</param>
+    public async Task<bool> RunSbyAsync(string fullPath, Action<string>? output = null)
     {
         if (_projectExplorerService.GetRootFromFile(fullPath) is not { } root) return false;
 
         return _settingsService.GetSettingValue<string>(SbyRunnerSetting) == SbyRunnerNative
-            ? await RunSbyNativeAsync(root.RootFolderPath, fullPath)
-            : await RunSbyDockerAsync(root.RootFolderPath, fullPath);
+            ? await RunSbyNativeAsync(root.RootFolderPath, fullPath, output)
+            : await RunSbyDockerAsync(root.RootFolderPath, fullPath, output);
     }
 
-    private async Task<bool> RunSbyNativeAsync(string userPath, string fullPath)
+    private async Task<bool> RunSbyNativeAsync(string userPath, string fullPath, Action<string>? output)
     {
-        var ossPath = GetOssCadSuitePath();
+        var ossPath = GetOssCadSuitePath(output);
         if (ossPath == null) return false;
 
         var sbyPath = Path.Combine(ossPath, "bin", $"sby{PlatformHelper.ExecutableExtension}");
         if (!File.Exists(sbyPath))
         {
-            _logger.Error($"SymbiYosys was not found in OSS CAD Suite ({sbyPath}).", null, true, true);
+            ReportRunError($"SymbiYosys was not found in OSS CAD Suite ({sbyPath}).", output);
             return false;
         }
 
-        var yosysCommand = await GetNativeYosysCommandAsync(ossPath);
+        var yosysCommand = await GetNativeYosysCommandAsync(ossPath, output);
         if (yosysCommand == null) return false;
 
         // SBY output goes to <project>/build/psl/<name>_<task>, so its copies of the sources stay out of the project
@@ -317,11 +321,13 @@ public class PslService
             .WithOutputHandler(x =>
             {
                 _outputService.WriteLine(x);
+                output?.Invoke(x);
                 return true;
             })
             .WithErrorHandler(x =>
             {
                 _logger.Warning(x);
+                output?.Invoke(x);
                 return true;
             })
             .ForceStrategy(NativeStrategy.ToolKey)
@@ -332,7 +338,7 @@ public class PslService
         return success;
     }
 
-    private string? GetOssCadSuitePath()
+    private string? GetOssCadSuitePath(Action<string>? output)
     {
         var ossPath = _settingsService.HasSetting(OssCadSuitePathSetting)
             ? _settingsService.GetSettingValue<string>(OssCadSuitePathSetting)
@@ -340,10 +346,9 @@ public class PslService
 
         if (string.IsNullOrWhiteSpace(ossPath) || !Directory.Exists(ossPath))
         {
-            _logger.Error("OSS CAD Suite was not found. Install it from the package manager " +
-                          "(or set its path in Settings → Tools → OSS Cad Suite), or switch the SBY runner to Docker " +
-                          "in Settings → Tools → PSL Extension.",
-                null, true, true);
+            ReportRunError("OSS CAD Suite was not found. Install it from the package manager " +
+                           "(or set its path in Settings → Tools → OSS Cad Suite), or switch the SBY runner to Docker " +
+                           "in Settings → Tools → PSL Extension.", output);
             return null;
         }
 
@@ -354,41 +359,38 @@ public class PslService
     /// The yosys command SBY should use, with the GHDL plugin loaded. The Linux and macOS OSS CAD Suite
     /// include the plugin, on Windows the build matching the installed OSS CAD Suite is downloaded.
     /// </summary>
-    private async Task<string?> GetNativeYosysCommandAsync(string ossPath)
+    private async Task<string?> GetNativeYosysCommandAsync(string ossPath, Action<string>? output)
     {
         if (!OperatingSystem.IsWindows())
         {
             if (File.Exists(Path.Combine(ossPath, "share", "yosys", "plugins", "ghdl.so"))) return "yosys -m ghdl";
 
-            _logger.Error($"The OSS CAD Suite in {ossPath} does not include the GHDL plugin for yosys, " +
-                          "which SymbiYosys needs to read VHDL. Install OSS CAD Suite from the package manager, " +
-                          "or switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
-                null, true, true);
+            ReportRunError($"The OSS CAD Suite in {ossPath} does not include the GHDL plugin for yosys, " +
+                           "which SymbiYosys needs to read VHDL. Install OSS CAD Suite from the package manager, " +
+                           "or switch the SBY runner to Docker in Settings → Tools → PSL Extension.", output);
             return null;
         }
 
         if (PlatformHelper.Platform != PlatformId.WinX64)
         {
-            _logger.Error("Running SymbiYosys natively is only supported on x64 Windows. " +
-                          "Switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
-                null, true, true);
+            ReportRunError("Running SymbiYosys natively is only supported on x64 Windows. " +
+                           "Switch the SBY runner to Docker in Settings → Tools → PSL Extension.", output);
             return null;
         }
 
-        var pluginPath = await GetWindowsGhdlPluginAsync(ossPath);
+        var pluginPath = await GetWindowsGhdlPluginAsync(ossPath, output);
         // yosys runs through the shell, so the plugin path is quoted in case it contains spaces
         return pluginPath == null ? null : $"yosys -m \"{pluginPath.Replace('\\', '/')}\"";
     }
 
-    private async Task<string?> GetWindowsGhdlPluginAsync(string ossPath)
+    private async Task<string?> GetWindowsGhdlPluginAsync(string ossPath, Action<string>? output)
     {
         var versionFile = Path.Combine(ossPath, "VERSION");
         if (!File.Exists(versionFile))
         {
-            _logger.Error($"The OSS CAD Suite in {ossPath} has no VERSION file, so the matching GHDL plugin " +
-                          "can't be picked. Install OSS CAD Suite from the package manager, " +
-                          "or switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
-                null, true, true);
+            ReportRunError($"The OSS CAD Suite in {ossPath} has no VERSION file, so the matching GHDL plugin " +
+                           "can't be picked. Install OSS CAD Suite from the package manager, " +
+                           "or switch the SBY runner to Docker in Settings → Tools → PSL Extension.", output);
             return null;
         }
 
@@ -397,10 +399,9 @@ public class PslService
         if (version == null)
         {
             var supported = string.Join(", ", GhdlPluginPackage.Package.Versions!.Select(x => x.Version));
-            _logger.Error($"There is no GHDL plugin for OSS CAD Suite {GhdlPluginPackage.ToPackageVersion(ossVersion)} yet " +
-                          $"(available for: {supported}). Install one of those OSS CAD Suite versions from the package manager, " +
-                          "or switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
-                null, true, true);
+            ReportRunError($"There is no GHDL plugin for OSS CAD Suite {GhdlPluginPackage.ToPackageVersion(ossVersion)} yet " +
+                           $"(available for: {supported}). Install one of those OSS CAD Suite versions from the package manager, " +
+                           "or switch the SBY runner to Docker in Settings → Tools → PSL Extension.", output);
             return null;
         }
 
@@ -412,16 +413,15 @@ public class PslService
         var problem = installedVersion == null || !File.Exists(pluginPath)
             ? "is not installed"
             : $"installed is for OSS CAD Suite {installedVersion}";
-        _logger.Error($"Running SymbiYosys natively on Windows needs the GHDL plugin for OSS CAD Suite {version.Version}, " +
-                      $"the one {problem}. Install version {version.Version} of \"{GhdlPluginPackage.Package.Name}\" " +
-                      "from the package manager (Binaries), or switch the SBY runner to Docker in Settings → Tools → PSL Extension.",
-            null, true, true);
+        ReportRunError($"Running SymbiYosys natively on Windows needs the GHDL plugin for OSS CAD Suite {version.Version}, " +
+                       $"the one {problem}. Install version {version.Version} of \"{GhdlPluginPackage.Package.Name}\" " +
+                       "from the package manager (Binaries), or switch the SBY runner to Docker in Settings → Tools → PSL Extension.", output);
         return null;
     }
 
-    private async Task<bool> RunSbyDockerAsync(string userPath, string fullPath)
+    private async Task<bool> RunSbyDockerAsync(string userPath, string fullPath, Action<string>? output)
     {
-        if (!await CheckDockerAsync()) return false;
+        if (!await CheckDockerAsync(output)) return false;
 
         const string containerWorkspace = "/workspace";
         const string containerImage = "hdlc/formal";
@@ -445,10 +445,12 @@ public class PslService
             "running bounded model checker...", AppState.Loading, true, x =>
             {
                 _outputService.WriteLine(x);
+                output?.Invoke(x);
                 return true;
             }, x =>
             {
                 _logger.Warning(x);
+                output?.Invoke(x);
                 return true;
             });
 

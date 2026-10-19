@@ -33,6 +33,8 @@ SymbiYosys can run in Docker or natively from OSS CAD Suite. Choose in **Setting
 - **PSL → Generate → simulate SBY file** creates it and runs it right away.
 - Right-click a .sby file → **SBY → Run SBY** runs an existing one.
 - The PSL simulator also shows up in the simulator list.
+- AI agents (the OneWare chat, or MCP clients through the MCP Bridge extension) can run a .sby file with the
+  **psl_run_sby** tool. It asks for confirmation in OneWare and returns the SBY output with the PASS/FAIL result.
 - With Docker, launch your container runtime first if it is not already running.
 
 ## Notes
