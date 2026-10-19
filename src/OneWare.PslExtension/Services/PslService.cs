@@ -210,6 +210,15 @@ public class PslService
         {
             await File.WriteAllTextAsync(outputFilePath, sb.ToString());
             _outputService.WriteLine($"SBY file successfully generated at {outputFilePath}");
+
+            var relativeSbyPath = Path.GetRelativePath(root.RootFolderPath, outputFilePath);
+            if (!root.IsPathIncluded(relativeSbyPath))
+            {
+                root.IncludePath(relativeSbyPath);
+                await _projectExplorerService.SaveProjectAsync(root);
+            }
+            if (root.GetLoadedEntry(relativeSbyPath) == null) root.AddFile(relativeSbyPath);
+
             return true;
         }
         catch (Exception ex)
@@ -290,9 +299,55 @@ public class PslService
     {
         if (_projectExplorerService.GetRootFromFile(fullPath) is not { } root) return false;
 
-        return _settingsService.GetSettingValue<string>(SbyRunnerSetting) == SbyRunnerNative
+        var pslFolder = Path.Combine(root.RootFolderPath, BuildFolderName, "psl");
+        var tasks = GetTasks(fullPath);
+        var logTimesBefore = tasks.Select(x => GetLogTime(pslFolder, x.Folder)).ToList();
+
+        var success = _settingsService.GetSettingValue<string>(SbyRunnerSetting) == SbyRunnerNative
             ? await RunSbyNativeAsync(root.RootFolderPath, fullPath, output)
             : await RunSbyDockerAsync(root.RootFolderPath, fullPath, output);
+
+        // SBY rewrites the log of each task it runs, the traces of the other tasks stay as they are
+        var ranTasks = tasks.Where((x, i) => GetLogTime(pslFolder, x.Folder) is { } time && time != logTimesBefore[i]);
+        CopyTraces(pslFolder, Path.GetDirectoryName(fullPath)!, ranTasks);
+
+        return success;
+    }
+
+    /// <summary>
+    /// Copies the traces of the tasks next to the .sby file, replacing the copies of their previous run.
+    /// </summary>
+    private void CopyTraces(string pslFolder, string sbyFolder, IEnumerable<(string Folder, string CopyBaseName)> tasks)
+    {
+        try
+        {
+            foreach (var (folder, copyBaseName) in tasks)
+            {
+                foreach (var oldCopy in SbyTraces.FindCopies(sbyFolder, copyBaseName)) File.Delete(oldCopy);
+
+                foreach (var (source, copyName) in SbyTraces.FindTaskTraces(Path.Combine(pslFolder, folder), copyBaseName))
+                    File.Copy(source, Path.Combine(sbyFolder, copyName), true);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            _logger.Error($"The traces could not be copied to {sbyFolder}: {e.Message}", e);
+        }
+    }
+
+    private static List<(string Folder, string CopyBaseName)> GetTasks(string sbyFullPath)
+    {
+        var sbyName = Path.GetFileNameWithoutExtension(sbyFullPath);
+        var tasks = File.Exists(sbyFullPath) ? SbyTraces.ReadTaskNames(File.ReadAllText(sbyFullPath)) : [];
+        return (tasks.Count == 0 ? [null] : tasks.Cast<string?>())
+            .Select(x => (SbyTraces.GetTaskFolderName(sbyName, x), SbyTraces.GetCopyBaseName(sbyName, x)))
+            .ToList();
+    }
+
+    private static DateTime? GetLogTime(string pslFolder, string taskFolder)
+    {
+        var log = Path.Combine(pslFolder, taskFolder, "logfile.txt");
+        return File.Exists(log) ? File.GetLastWriteTimeUtc(log) : null;
     }
 
     private async Task<bool> RunSbyNativeAsync(string userPath, string fullPath, Action<string>? output)

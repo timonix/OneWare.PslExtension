@@ -36,7 +36,9 @@ public class PslAiFunctions(PslService pslService, IProjectExplorerService proje
             Description = "Runs SymbiYosys (formal verification of PSL properties) on a .sby file and returns its " +
                           "output, ending with the PASS/FAIL result of each task. SBY runs in Docker or from " +
                           "OSS CAD Suite, as set in Settings → Tools → PSL Extension. The .sby file must belong " +
-                          "to a project open in OneWare; its results are written to <project>/build/psl.",
+                          "to a project open in OneWare; its results are written to <project>/build/psl. The " +
+                          "traces SBY writes (the counterexample of a failed assertion, one per reached cover " +
+                          "statement) are copied next to the .sby file as <sby name>_<task>.vcd.",
             Handler = (Func<string, Task<string>>)RunSbyAsync,
             ConfirmationCheck = _ => "Run SymbiYosys on this .sby file? This runs SBY in Docker or from OSS CAD Suite.",
             RunOnUiThread = true
