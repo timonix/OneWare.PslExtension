@@ -56,7 +56,7 @@ public class PslService
 
     }
     
-    private static string GetSbyPath(string vhdlFullPath)
+    internal static string GetSbyPath(string vhdlFullPath)
     {
         return Path.Combine(Path.GetDirectoryName(vhdlFullPath)!, $"{Path.GetFileNameWithoutExtension(vhdlFullPath)}.sby");
     }

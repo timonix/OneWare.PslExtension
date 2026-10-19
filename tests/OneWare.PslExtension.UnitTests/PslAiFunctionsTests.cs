@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Microsoft.Extensions.AI;
 using OneWare.PslExtension.Services;
 using Xunit;
 
@@ -49,12 +52,33 @@ public class PslAiFunctionsTests
     }
 
     [Fact]
-    public void RunSbyFunctionIsOffered()
+    public void GenerateAndRunFunctionsAreOffered()
     {
         var functions = new PslAiFunctions(null!, null!).CreateFunctions().ToList();
 
-        var runSby = Assert.Single(functions);
-        Assert.Equal("psl_run_sby", runSby.Name);
-        Assert.NotNull(runSby.ConfirmationCheck);
+        Assert.Equal(["psl_generate_sby", "psl_run_sby"], functions.Select(x => x.Name));
+        Assert.All(functions, x => Assert.NotNull(x.ConfirmationCheck));
+    }
+
+    [Fact]
+    public void GenerateAsksOnlyBeforeReplacingAnSbyFile()
+    {
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            var vhdlPath = Path.Combine(directory.FullName, "eth_crc32_fv.vhd");
+            File.WriteAllText(vhdlPath, "");
+            var generate = new PslAiFunctions(null!, null!).CreateFunctions().First(x => x.Name == "psl_generate_sby");
+            var arguments = new AIFunctionArguments(new Dictionary<string, object?> { ["path"] = vhdlPath });
+
+            Assert.Null(generate.ConfirmationCheck!(arguments));
+
+            File.WriteAllText(Path.Combine(directory.FullName, "eth_crc32_fv.sby"), "");
+            Assert.Contains("eth_crc32_fv.sby", generate.ConfirmationCheck!(arguments));
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
     }
 }
