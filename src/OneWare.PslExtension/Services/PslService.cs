@@ -288,6 +288,11 @@ public class PslService
         }
     }
 
+    // SBY starts its lines with the full path of the task folder, the folder name alone tells which task it is
+    private static readonly Regex SbyLineTaskFolder = new(@"^(SBY \d+:\d+:\d+ \[)[^\]]*[\\/]([^\\/\]]+\])");
+
+    internal static string ShortenSbyLine(string line) => SbyLineTaskFolder.Replace(line, "$1$2");
+
     private void ReportRunError(string message, Action<string>? output)
     {
         _logger.Error(message, null, true, true);
@@ -375,14 +380,16 @@ public class PslService
             .WithTimer(true)
             .WithOutputHandler(x =>
             {
-                _outputService.WriteLine(x);
-                output?.Invoke(x);
+                var line = ShortenSbyLine(x);
+                _outputService.WriteLine(line);
+                output?.Invoke(line);
                 return true;
             })
             .WithErrorHandler(x =>
             {
-                _logger.Warning(x);
-                output?.Invoke(x);
+                var line = ShortenSbyLine(x);
+                _logger.Warning(line);
+                output?.Invoke(line);
                 return true;
             })
             .ForceStrategy(NativeStrategy.ToolKey)
@@ -503,14 +510,16 @@ public class PslService
             .WithTimer(true)
             .WithOutputHandler(x =>
             {
-                _outputService.WriteLine(x);
-                output?.Invoke(x);
+                var line = ShortenSbyLine(x);
+                _outputService.WriteLine(line);
+                output?.Invoke(line);
                 return true;
             })
             .WithErrorHandler(x =>
             {
-                _logger.Warning(x);
-                output?.Invoke(x);
+                var line = ShortenSbyLine(x);
+                _logger.Warning(line);
+                output?.Invoke(line);
                 return true;
             })
             .AddRange(arguments)

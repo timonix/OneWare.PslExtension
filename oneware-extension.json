@@ -88,16 +88,7 @@
       ]
     },
     {
-      "version": "0.6.45",
-      "minStudioVersion": "1.0.32.1",
-      "targets": [
-        {
-          "target": "all"
-        }
-      ]
-    },
-    {
-      "version": "0.7.45",
+      "version": "0.8.45",
       "minStudioVersion": "1.0.32.1",
       "targets": [
         {
