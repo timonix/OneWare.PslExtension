@@ -17,6 +17,7 @@ public class OneWarePslExtensionModule : OneWareModuleBase
     public override void RegisterServices(IServiceCollection containerRegistry)
     {
         containerRegistry.AddSingleton<PslService>();
+        containerRegistry.AddSingleton<GracefulStopStrategy>();
         containerRegistry.AddSingleton<PslAiFunctions>();
     }
 
@@ -32,6 +33,7 @@ public class OneWarePslExtensionModule : OneWareModuleBase
             toolService.Register(new ToolContext("docker", "Container runtime used to run SymbiYosys", "docker"));
         if (toolService.GetAllTools().All(x => x.Key != "sby"))
             toolService.Register(new ToolContext("sby", "SymbiYosys formal verification", "sby"));
+        toolService.RegisterStrategy(serviceProvider.Resolve<GracefulStopStrategy>(), ["sby", "docker"]);
 
         serviceProvider.Resolve<ISettingsService>().RegisterSetting("Tools", "PSL Extension", PslService.SbyRunnerSetting,
             new ComboBoxSetting("SBY Runner", PslService.SbyRunnerDocker,

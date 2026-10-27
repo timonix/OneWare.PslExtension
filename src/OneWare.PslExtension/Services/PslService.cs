@@ -11,7 +11,6 @@ using OneWare.Essentials.Models;
 using OneWare.Essentials.PackageManager.Compatibility;
 using OneWare.Essentials.Services;
 using OneWare.Essentials.ToolEngine;
-using OneWare.Essentials.ToolEngine.Strategies;
 using OneWare.Essentials.ViewModels;
 using OneWare.PslExtension.ViewModels;
 using OneWare.UniversalFpgaProjectSystem.Context;
@@ -392,7 +391,7 @@ public class PslService
                 output?.Invoke(line);
                 return true;
             })
-            .ForceStrategy(NativeStrategy.ToolKey)
+            .ForceStrategy(GracefulStopStrategy.StrategyKey)
             .Add("--yosys", yosysCommand, "--prefix", workdirPrefix, "-f", Path.GetFileName(fullPath))
             .Build();
 
@@ -522,6 +521,7 @@ public class PslService
                 output?.Invoke(line);
                 return true;
             })
+            .ForceStrategy(GracefulStopStrategy.StrategyKey)
             .AddRange(arguments)
             .Build();
 
