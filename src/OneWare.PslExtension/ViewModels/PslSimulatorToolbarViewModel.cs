@@ -38,23 +38,38 @@ public class PslSimulatorToolbarViewModel(TestBenchContext context) : Observable
         }
     }
     
-    public string[] AvailableBmcEngines => ["smtbmc"];
+    // The SBY engines and what each one runs: solvers, for abc its commands. Not every one supports every mode,
+    // and not every one is installed everywhere (the hdlc/formal image has the fewest), SBY reports both
+    private static readonly Dictionary<string, string[]> SolversByEngine = new()
+    {
+        ["smtbmc"] = ["z3", "yices", "boolector", "bitwuzla", "cvc4", "cvc5"],
+        ["abc"] = ["bmc3", "sim3", "pdr"],
+        ["aiger"] = ["aigbmc", "suprove", "avy", "rIC3"],
+        ["btor"] = ["btormc", "pono", "rIC3"]
+    };
+
+    public string[] AvailableBmcEngines => SolversByEngine.Keys.ToArray();
     public string BmcEngine
     {
         get => context.GetBenchProperty(nameof(BmcEngine)) ?? "smtbmc";
         set
         {
+            // The combo box clears its selection while its items change
+            if (string.IsNullOrEmpty(value) || value == BmcEngine) return;
             context.SetBenchProperty(nameof(BmcEngine), value);
             OnPropertyChanged();
+            OnPropertyChanged(nameof(AvailableSolvers));
+            Solver = AvailableSolvers.Contains(Solver) ? Solver : AvailableSolvers[0];
         }
     }
-    
-    public string[] AvailableSolvers => ["z3"];
+
+    public string[] AvailableSolvers => SolversByEngine.GetValueOrDefault(BmcEngine, []);
     public string Solver
     {
-        get => context.GetBenchProperty(nameof(Solver)) ?? "z3";
+        get => context.GetBenchProperty(nameof(Solver)) ?? AvailableSolvers.FirstOrDefault("z3");
         set
         {
+            if (string.IsNullOrEmpty(value)) return;
             context.SetBenchProperty(nameof(Solver), value);
             OnPropertyChanged();
         }

@@ -16,7 +16,7 @@
             <TextBlock Text="Engine" ToolTip.Tip="Select the bmc engine and its solver" />
             <ComboBox Width="95" ItemsSource="{Binding AvailableBmcEngines}"
                       SelectedItem="{Binding BmcEngine, Mode=TwoWay}" />
-            <ComboBox Width="80" ItemsSource="{Binding AvailableSolvers}"
+            <ComboBox Width="100" ItemsSource="{Binding AvailableSolvers}"
                       SelectedItem="{Binding Solver, Mode=TwoWay}" />
         </StackPanel>
         <StackPanel Classes="form-row">
